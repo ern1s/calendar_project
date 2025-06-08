@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Календарь событий</title>
+
+  <!-- FullCalendar CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.css" rel="stylesheet" />
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      max-width: 900px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    #calendar {
+      max-width: 900px;
+      margin: 40px auto;
+    }
+    form {
+      margin-bottom: 20px;
+    }
+    input, button {
+      padding: 8px;
+      margin: 5px 0;
+      width: 100%;
+      max-width: 300px;
+      box-sizing: border-box;
+    }
+  </style>
+</head>
+<body>
+  <h1>Календарь событий</h1>
+
+  <form id="event-form">
+    <input type="text" id="event-title" placeholder="Название события" required />
+    <input type="datetime-local" id="event-start" required />
+    <input type="datetime-local" id="event-end" />
+    <button type="submit">Добавить событие</button>
+  </form>
+
+  <div id="calendar"></div>
+
+  <!-- FullCalendar JS -->
+  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
+
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+      const token = localStorage.getItem("token");
+
+      if (!token) {
+        alert("Пожалуйста, войдите в систему.");
+        window.location.href = "login.html"; // или другая страница логина
+        return;
+      }
+
+      const calendarEl = document.getElementById("calendar");
+
+      const calendar = new FullCalendar.Calendar(calendarEl, {
+        initialView: 'dayGridMonth',
+        editable: false,
+        events: function(fetchInfo, successCallback, failureCallback) {
+          fetch("http://localhost:8000/api/events/", {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          })
+            .then(res => res.json())
+            .then(data => {
+              // Преобразуем события к формату FullCalendar
+              const events = data.map(event => ({
+                id: event.id,
+                title: event.title,
+                start: event.start_time,
+                end: event.end_time,
+              }));
+              successCallback(events);
+            })
+            .catch(err => {
+              alert("Ошибка при загрузке событий");
+              failureCallback(err);
+            });
+        },
+        eventClick: function(info) {
+          const event = info.event;
+          const action = prompt("Введите 'edit' для редактирования или 'delete' для удаления:");
+
+          if (action === "edit") {
+            const newTitle = prompt("Редактировать название события:", event.title);
+            if (newTitle === null) return;
+
+            fetch(`http://localhost:8000/api/events/${event.id}/`, {
+              method: "PUT",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${token}`,
+              },
+              body: JSON.stringify({
+                title: newTitle,
+                start_time: event.start.toISOString(),
+                end_time: event.end ? event.end.toISOString() : event.start.toISOString(),
+              }),
+            }).then(res => {
+              if (res.ok) {
+                alert("Событие обновлено");
+                event.setProp("title", newTitle);
+              } else {
+                alert("Ошибка при обновлении");
+              }
+            });
+          } else if (action === "delete") {
+            if (!confirm("Удалить это событие?")) return;
+
+            fetch(`http://localhost:8000/api/events/${event.id}/`, {
+              method: "DELETE",
+              headers: {
+                Authorization: `Bearer ${token}`,
+              },
+            }).then(res => {
+              if (res.ok) {
+                alert("Событие удалено");
+                event.remove();
+              } else {
+                alert("Ошибка при удалении");
+              }
+            });
+          }
+        }
+      });
+
+      calendar.render();
+
+      const eventForm = document.getElementById("event-form");
+      eventForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+
+        const title = document.getElementById("event-title").value;
+        const start = document.getElementById("event-start").value;
+        const end = document.getElementById("event-end").value || start;
+
+        const res = await fetch("http://localhost:8000/api/events/", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            title: title,
+            start_time: start,
+            end_time: end,
+          }),
+        });
+
+        if (res.ok) {
+          alert("Событие добавлено");
+          eventForm.reset();
+          calendar.refetchEvents();
+        } else {
+          alert("Ошибка при добавлении события");
+        }
+      });
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,15 @@
+ h1, h2 {
+  text-align: center;
+}
+
+form {
+  margin-top: 30px;
+}
+
+#calendar {
+  max-width: 900px;
+  margin: 0 auto;
+  background: white;
+  padding: 20px;
+  border-radius: 8px;
+}
